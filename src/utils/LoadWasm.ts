@@ -28,8 +28,8 @@
 const window = {
     globalThis,
     document: {
-        welovemb: true
-    }
+        welovemb: true,
+    },
 };
 
 globalThis.window = window;
@@ -38,12 +38,12 @@ globalThis.location = new URL("https://online.mbbank.com.vn/pl/login");
 const processAsync = (param1, param2, generatorFunction) =>
     new Promise((resolve, reject) => {
         var handleResult = (result) => {
-            try {
-                processStep(generatorFunction.next(result));
-            } catch (error) {
-                reject(error);
-            }
-        },
+                try {
+                    processStep(generatorFunction.next(result));
+                } catch (error) {
+                    reject(error);
+                }
+            },
             handleError = (error) => {
                 try {
                     processStep(generatorFunction.throw(error));
@@ -55,9 +55,7 @@ const processAsync = (param1, param2, generatorFunction) =>
                 step.done
                     ? resolve(step.value)
                     : Promise.resolve(step.value).then(handleResult, handleError);
-        processStep(
-            (generatorFunction = generatorFunction.apply(param1, param2)).next(),
-        );
+        processStep((generatorFunction = generatorFunction.apply(param1, param2)).next());
     });
 
 (() => {
@@ -110,23 +108,19 @@ const processAsync = (param1, param2, generatorFunction) =>
     }
     if (!globalThis.crypto) {
         throw new Error(
-            "globalThis.crypto is not available, polyfill required (crypto.getRandomValues only)",
+            "globalThis.crypto is not available, polyfill required (crypto.getRandomValues only)"
         );
     }
     if (!globalThis.performance) {
         throw new Error(
-            "globalThis.performance is not available, polyfill required (performance.now only)",
+            "globalThis.performance is not available, polyfill required (performance.now only)"
         );
     }
     if (!globalThis.TextEncoder) {
-        throw new Error(
-            "globalThis.TextEncoder is not available, polyfill required",
-        );
+        throw new Error("globalThis.TextEncoder is not available, polyfill required");
     }
     if (!globalThis.TextDecoder) {
-        throw new Error(
-            "globalThis.TextDecoder is not available, polyfill required",
-        );
+        throw new Error("globalThis.TextDecoder is not available, polyfill required");
     }
 
     const TextEncoderUnicode = new TextEncoder("utf-8");
@@ -150,11 +144,7 @@ const processAsync = (param1, param2, generatorFunction) =>
 
             const setMemoryValue = (address, value) => {
                 this.mem.setUint32(address + 0x0, value, true);
-                this.mem.setUint32(
-                    address + 0x4,
-                    Math.floor(value / 0x100000000),
-                    true,
-                );
+                this.mem.setUint32(address + 0x4, Math.floor(value / 0x100000000), true);
             };
 
             const getValueFromMemory = (address) => {
@@ -227,11 +217,7 @@ const processAsync = (param1, param2, generatorFunction) =>
                     this.mem.getUint32(address + 0x8, true) +
                     0x100000000 * this.mem.getInt32(address + 0xc, true);
 
-                return new Uint8Array(
-                    this._inst.exports.mem.buffer,
-                    startAddress,
-                    length,
-                );
+                return new Uint8Array(this._inst.exports.mem.buffer, startAddress, length);
             };
 
             const getArrayFromMemory = (address) => {
@@ -261,7 +247,7 @@ const processAsync = (param1, param2, generatorFunction) =>
                     0x100000000 * this.mem.getInt32(address + 0xc, true);
 
                 return TextDecoderUnicode.decode(
-                    new DataView(this._inst.exports.mem.buffer, startAddress, length),
+                    new DataView(this._inst.exports.mem.buffer, startAddress, length)
                 );
             };
 
@@ -285,8 +271,7 @@ const processAsync = (param1, param2, generatorFunction) =>
                     "runtime.wasmWrite": (address) => {
                         const fileDescriptor =
                             this.mem.getUint32(0x8 + (address >>>= 0x0) + 0x0, true) +
-                            0x100000000 *
-                            this.mem.getInt32(0x8 + (address >>>= 0x0) + 0x4, true);
+                            0x100000000 * this.mem.getInt32(0x8 + (address >>>= 0x0) + 0x4, true);
 
                         const dataAddress =
                             this.mem.getUint32(address + 0x10 + 0x0, true) +
@@ -296,11 +281,7 @@ const processAsync = (param1, param2, generatorFunction) =>
 
                         fs.writeSync(
                             fileDescriptor,
-                            new Uint8Array(
-                                this._inst.exports.mem.buffer,
-                                dataAddress,
-                                dataLength,
-                            ),
+                            new Uint8Array(this._inst.exports.mem.buffer, dataAddress, dataLength)
                         );
                     },
                     "runtime.resetMemoryDataView": (_0x1fc0dd) => {
@@ -309,18 +290,14 @@ const processAsync = (param1, param2, generatorFunction) =>
                     "runtime.nanotime1": (_0x5843c4) => {
                         setMemoryValue(
                             0x8 + (_0x5843c4 >>>= 0x0),
-                            0xf4240 * (timeDifference + performance.now()),
+                            0xf4240 * (timeDifference + performance.now())
                         );
                     },
                     "runtime.walltime": (_0x431dd5) => {
                         _0x431dd5 >>>= 0x0;
                         const _0x2d1628 = new Date().getTime();
                         setMemoryValue(_0x431dd5 + 0x8, _0x2d1628 / 0x3e8);
-                        this.mem.setInt32(
-                            _0x431dd5 + 0x10,
-                            (_0x2d1628 % 0x3e8) * 0xf4240,
-                            true,
-                        );
+                        this.mem.setInt32(_0x431dd5 + 0x10, (_0x2d1628 % 0x3e8) * 0xf4240, true);
                     },
                     "runtime.scheduleTimeoutEvent": (_0x40be90) => {
                         _0x40be90 >>>= 0x0;
@@ -329,32 +306,24 @@ const processAsync = (param1, param2, generatorFunction) =>
                         this._scheduledTimeouts.set(
                             _0x4d23db,
                             setTimeout(() => {
-                                for (this._resume(); this._scheduledTimeouts.has(_0x4d23db);) {
+                                for (this._resume(); this._scheduledTimeouts.has(_0x4d23db); ) {
                                     console.warn("scheduleTimeoutEvent: missed timeout event");
                                     this._resume();
                                 }
-                            }, this.mem.getUint32(_0x40be90 + 0x8 + 0x0, true) + 0x100000000 * this.mem.getInt32(_0x40be90 + 0x8 + 0x4, true)),
+                            }, this.mem.getUint32(_0x40be90 + 0x8 + 0x0, true) + 0x100000000 * this.mem.getInt32(_0x40be90 + 0x8 + 0x4, true))
                         );
                         this.mem.setInt32(_0x40be90 + 0x10, _0x4d23db, true);
                     },
                     "runtime.clearTimeoutEvent": (_0x4d392b) => {
-                        const _0x157834 = this.mem.getInt32(
-                            0x8 + (_0x4d392b >>>= 0x0),
-                            true,
-                        );
+                        const _0x157834 = this.mem.getInt32(0x8 + (_0x4d392b >>>= 0x0), true);
                         clearTimeout(this._scheduledTimeouts.get(_0x157834));
                         this._scheduledTimeouts["delete"](_0x157834);
                     },
                     "runtime.getRandomData": (_0xfc09b6) => {
-                        crypto.getRandomValues(
-                            getByteArrayFromMemory(0x8 + (_0xfc09b6 >>>= 0x0)),
-                        );
+                        crypto.getRandomValues(getByteArrayFromMemory(0x8 + (_0xfc09b6 >>>= 0x0)));
                     },
                     "syscall/js.finalizeRef": (_0x5edca4) => {
-                        const _0x57d4fc = this.mem.getUint32(
-                            0x8 + (_0x5edca4 >>>= 0x0),
-                            true,
-                        );
+                        const _0x57d4fc = this.mem.getUint32(0x8 + (_0x5edca4 >>>= 0x0), true);
                         this._goRefCounts[_0x57d4fc]--;
                         if (this._goRefCounts[_0x57d4fc] === 0x0) {
                             const _0x372c88 = this._values[_0x57d4fc];
@@ -366,14 +335,14 @@ const processAsync = (param1, param2, generatorFunction) =>
                     "syscall/js.stringVal": (_0x11c7ea) => {
                         setValueInMemory(
                             0x18 + (_0x11c7ea >>>= 0x0),
-                            getStringFromMemory(_0x11c7ea + 0x8),
+                            getStringFromMemory(_0x11c7ea + 0x8)
                         );
                     },
                     "syscall/js.valueGet": (_0x3c119c) => {
                         _0x3c119c >>>= 0x0;
                         const _0x57d3f0 = Reflect.get(
                             getValueFromMemory(_0x3c119c + 0x8),
-                            getStringFromMemory(_0x3c119c + 0x10),
+                            getStringFromMemory(_0x3c119c + 0x10)
                         );
                         _0x3c119c = this._inst.exports.getsp() >>> 0x0;
                         setValueInMemory(_0x3c119c + 0x20, _0x57d3f0);
@@ -383,14 +352,14 @@ const processAsync = (param1, param2, generatorFunction) =>
                         Reflect.set(
                             getValueFromMemory(_0x2df90d + 0x8),
                             getStringFromMemory(_0x2df90d + 0x10),
-                            getValueFromMemory(_0x2df90d + 0x20),
+                            getValueFromMemory(_0x2df90d + 0x20)
                         );
                     },
                     "syscall/js.valueDelete": (_0x5c6169) => {
                         _0x5c6169 >>>= 0x0;
                         Reflect.deleteProperty(
                             getValueFromMemory(_0x5c6169 + 0x8),
-                            getStringFromMemory(_0x5c6169 + 0x10),
+                            getStringFromMemory(_0x5c6169 + 0x10)
                         );
                     },
                     "syscall/js.valueIndex": (_0xd5cf7e) => {
@@ -399,8 +368,8 @@ const processAsync = (param1, param2, generatorFunction) =>
                             Reflect.get(
                                 getValueFromMemory(_0xd5cf7e + 0x8),
                                 this.mem.getUint32(_0xd5cf7e + 0x10 + 0x0, true) +
-                                0x100000000 * this.mem.getInt32(_0xd5cf7e + 0x10 + 0x4, true),
-                            ),
+                                    0x100000000 * this.mem.getInt32(_0xd5cf7e + 0x10 + 0x4, true)
+                            )
                         );
                     },
                     "syscall/js.valueSetIndex": (_0x1b938f) => {
@@ -408,8 +377,8 @@ const processAsync = (param1, param2, generatorFunction) =>
                         Reflect.set(
                             getValueFromMemory(_0x1b938f + 0x8),
                             this.mem.getUint32(_0x1b938f + 0x10 + 0x0, true) +
-                            0x100000000 * this.mem.getInt32(_0x1b938f + 0x10 + 0x4, true),
-                            getValueFromMemory(_0x1b938f + 0x18),
+                                0x100000000 * this.mem.getInt32(_0x1b938f + 0x10 + 0x4, true),
+                            getValueFromMemory(_0x1b938f + 0x18)
                         );
                     },
                     "syscall/js.valueCall": (_0x38baf6) => {
@@ -418,7 +387,7 @@ const processAsync = (param1, param2, generatorFunction) =>
                             const _0xb55714 = getValueFromMemory(_0x38baf6 + 0x8);
                             const _0x4b45ac = Reflect.get(
                                 _0xb55714,
-                                getStringFromMemory(_0x38baf6 + 0x10),
+                                getStringFromMemory(_0x38baf6 + 0x10)
                             );
                             const _0x929c90 = getArrayFromMemory(_0x38baf6 + 0x20);
                             const _0x331ca0 = Reflect.apply(_0x4b45ac, _0xb55714, _0x929c90);
@@ -464,13 +433,13 @@ const processAsync = (param1, param2, generatorFunction) =>
                     "syscall/js.valueLength": (_0x2cc204) => {
                         setMemoryValue(
                             0x10 + (_0x2cc204 >>>= 0x0),
-                            parseInt(getValueFromMemory(_0x2cc204 + 0x8).length),
+                            parseInt(getValueFromMemory(_0x2cc204 + 0x8).length)
                         );
                     },
                     "syscall/js.valuePrepareString": (_0x57c513) => {
                         _0x57c513 >>>= 0x0;
                         const _0xe5ad3d = TextEncoderUnicode.encode(
-                            String(getValueFromMemory(_0x57c513 + 0x8)),
+                            String(getValueFromMemory(_0x57c513 + 0x8))
                         );
                         setValueInMemory(_0x57c513 + 0x10, _0xe5ad3d);
                         setMemoryValue(_0x57c513 + 0x18, _0xe5ad3d.length);
@@ -485,13 +454,11 @@ const processAsync = (param1, param2, generatorFunction) =>
                             getValueFromMemory(_0x515e20 + 0x8) instanceof
                                 getValueFromMemory(_0x515e20 + 0x10)
                                 ? 0x1
-                                : 0x0,
+                                : 0x0
                         );
                     },
                     "syscall/js.copyBytesToGo": (_0x3b040d) => {
-                        const _0xcf50d7 = getByteArrayFromMemory(
-                            0x8 + (_0x3b040d >>>= 0x0),
-                        );
+                        const _0xcf50d7 = getByteArrayFromMemory(0x8 + (_0x3b040d >>>= 0x0));
                         const _0x502788 = getValueFromMemory(_0x3b040d + 0x20);
                         if (
                             !(
@@ -551,9 +518,7 @@ const processAsync = (param1, param2, generatorFunction) =>
                 const _0x17ab00 = (_0x592ac2) => {
                     const _0x42047b = _0x5c27d6;
                     const _0x169394 = TextEncoderUnicode.encode(_0x592ac2 + "\0");
-                    new Uint8Array(this.mem.buffer, _0x5c27d6, _0x169394.length).set(
-                        _0x169394,
-                    );
+                    new Uint8Array(this.mem.buffer, _0x5c27d6, _0x169394.length).set(_0x169394);
                     _0x5c27d6 += _0x169394.length;
                     if (_0x5c27d6 % 0x8 != 0x0) {
                         _0x5c27d6 += 0x8 - (_0x5c27d6 % 0x8);
@@ -580,7 +545,7 @@ const processAsync = (param1, param2, generatorFunction) =>
                 });
                 if (_0x5c27d6 >= 0x3000) {
                     throw new Error(
-                        "total length of command line and environment variables exceeds limit",
+                        "total length of command line and environment variables exceeds limit"
                     );
                 }
                 this._inst.exports.run(_0x33ce5b, _0x1563af);
@@ -601,7 +566,7 @@ const processAsync = (param1, param2, generatorFunction) =>
         }
         _makeFuncWrapper(id) {
             const this_ = this;
-            return function() {
+            return function () {
                 const event = {
                     id,
                     this: this,
@@ -615,11 +580,10 @@ const processAsync = (param1, param2, generatorFunction) =>
     };
 })();
 
-export default function(wasmBytes: Buffer, requestData: any, args1: string): Promise<string> {
+export default function (wasmBytes: Buffer, requestData: any, args1: string): Promise<string> {
     return processAsync(this, null, function* () {
         const go = new Go();
-        const instance = (yield WebAssembly.instantiate(wasmBytes, go.importObject))
-            .instance;
+        const instance = (yield WebAssembly.instantiate(wasmBytes, go.importObject)).instance;
         go.run(instance);
         return globalThis.bder(JSON.stringify(requestData), args1);
     });

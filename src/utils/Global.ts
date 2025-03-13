@@ -46,14 +46,16 @@ export function generateDeviceId() {
  * @type {Object}
  */
 export const defaultHeaders = {
-    'Cache-Control': 'no-cache',
-    'Accept': 'application/json, text/plain, */*',
-    'Authorization': 'Basic RU1CUkVUQUlMV0VCOlNEMjM0ZGZnMzQlI0BGR0AzNHNmc2RmNDU4NDNm',
-    'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-    "Origin": "https://online.mbbank.com.vn",
-    "Referer": "https://online.mbbank.com.vn/",
+    "Cache-Control": "no-cache",
+    Accept: "application/json, text/plain, */*",
+    Authorization: "Basic RU1CUkVUQUlMV0VCOlNEMjM0ZGZnMzQlI0BGR0AzNHNmc2RmNDU4NDNm",
+    "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+    Origin: "https://online.mbbank.com.vn",
+    Referer: "https://online.mbbank.com.vn/",
     "Content-Type": "application/json; charset=UTF-8",
     app: "MB_WEB",
+    "X-Request-Id": "",
 };
 
 /**
@@ -86,12 +88,12 @@ export async function replaceColor({
     image,
     target,
     replace,
-    tolerance = 0
+    tolerance = 0,
 }: {
-    image: Buffer,
-    target: string,
-    replace: string,
-    tolerance?: number
+    image: Buffer;
+    target: string;
+    replace: string;
+    tolerance?: number;
 }): Promise<Buffer> {
     try {
         // Load the image from buffer
@@ -99,8 +101,8 @@ export async function replaceColor({
 
         // Parse hex colors to RGBA values
         // Handle hex colors with or without # prefix
-        const targetHex = target.startsWith('#') ? target.substring(1) : target;
-        const replaceHex = replace.startsWith('#') ? replace.substring(1) : replace;
+        const targetHex = target.startsWith("#") ? target.substring(1) : target;
+        const replaceHex = replace.startsWith("#") ? replace.substring(1) : replace;
 
         // Convert hex to RGB integers
         const targetR = parseInt(targetHex.substring(0, 2), 16);
@@ -124,9 +126,7 @@ export async function replaceColor({
 
             // Calculate color difference using Euclidean distance
             const colorDiff = Math.sqrt(
-                Math.pow(r - targetR, 2) +
-                Math.pow(g - targetG, 2) +
-                Math.pow(b - targetB, 2)
+                Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2)
             );
 
             // Replace the color if within tolerance
@@ -141,7 +141,7 @@ export async function replaceColor({
         // Return the modified image as a buffer
         return await jimpImage.getBufferAsync(Jimp.MIME_PNG);
     } catch (error) {
-        console.error('Error in replaceColor:', error);
+        console.error("Error in replaceColor:", error);
         throw new Error(`Failed to process image: ${(error as Error).message}`);
     }
 }
@@ -156,10 +156,10 @@ export async function replaceColor({
  */
 export async function cutBorder({
     image,
-    borderWidth = 5
+    borderWidth = 5,
 }: {
-    image: Buffer,
-    borderWidth?: number
+    image: Buffer;
+    borderWidth?: number;
 }): Promise<Buffer> {
     try {
         // Load the image from buffer
@@ -171,25 +171,25 @@ export async function cutBorder({
 
         // Check if image is large enough to cut the border
         if (originalWidth <= 2 * borderWidth || originalHeight <= 2 * borderWidth) {
-            throw new Error('Image is too small to cut the specified border width');
+            throw new Error("Image is too small to cut the specified border width");
         }
 
         // Calculate new dimensions
-        const newWidth = originalWidth - (2 * borderWidth);
-        const newHeight = originalHeight - (2 * borderWidth);
+        const newWidth = originalWidth - 2 * borderWidth;
+        const newHeight = originalHeight - 2 * borderWidth;
 
         // Crop the image (removing the border from all sides)
         const croppedImage = jimpImage.crop(
-            borderWidth,    // x position (left)
-            borderWidth,    // y position (top)
-            newWidth,       // width
-            newHeight       // height
+            borderWidth, // x position (left)
+            borderWidth, // y position (top)
+            newWidth, // width
+            newHeight // height
         );
 
         // Return the modified image as a buffer
         return await croppedImage.getBufferAsync(Jimp.MIME_PNG);
     } catch (error) {
-        console.error('Error in cutBorder:', error);
+        console.error("Error in cutBorder:", error);
         throw new Error(`Failed to process image: ${(error as Error).message}`);
     }
 }

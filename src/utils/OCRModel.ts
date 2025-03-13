@@ -1,8 +1,32 @@
-import * as path from 'path';
-import * as ort from 'onnxruntime-node';
-import sharp from 'sharp';
-import { request } from 'undici';
-import { createWriteStream, existsSync } from 'fs';
+/*
+ * MIT License
+ *
+ * Copyright (c) 2025 CookieGMVN and contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+import { createWriteStream, existsSync } from "fs";
+import * as ort from "onnxruntime-node";
+import * as path from "path";
+import sharp from "sharp";
+import { request } from "undici";
 
 const dirPath = path.dirname(require.main ? require.main.filename : __filename);
 
@@ -17,14 +41,14 @@ export default class OCRModel {
      * @type {string[]}
      */
     private chars: string[];
-    
+
     /**
      * Path to the ONNX model file
      * @private
      * @type {string}
      */
     private modelPath: string;
-    
+
     /**
      * ONNX inference session
      * @private
@@ -53,7 +77,7 @@ export default class OCRModel {
         this.chars.sort();
 
         // Set the model path
-        this.modelPath = modelPath || path.join(dirPath, '/../model.onnx');
+        this.modelPath = modelPath || path.join(dirPath, "/../model.onnx");
     }
 
     /**
@@ -85,7 +109,7 @@ export default class OCRModel {
         }
 
         // Reshape to match the expected input shape [1, 1, 50, 160]
-        const tensor = new ort.Tensor('float32', imageArray, [1, 1, 50, 160]);
+        const tensor = new ort.Tensor("float32", imageArray, [1, 1, 50, 160]);
 
         // Get input name
         const inputName = this.session.inputNames[0];
@@ -102,7 +126,7 @@ export default class OCRModel {
         const predLabels = this.argmax(pred, 2);
 
         // Convert label indices to characters
-        let predText = '';
+        let predText = "";
         for (const label of predLabels[0]) {
             if (label >= 0 && label < this.chars.length) {
                 predText += this.chars[label];
@@ -121,12 +145,16 @@ export default class OCRModel {
     private async downloadOnnxModel(): Promise<void> {
         try {
             // Make the HTTP request
-            const model = await request("https://github.com/thedtvn/mbbank-capcha-ocr/raw/refs/heads/master/mb_capcha_ocr/model.onnx", {
-                maxRedirections: 10,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            const model = await request(
+                "https://github.com/thedtvn/mbbank-capcha-ocr/raw/refs/heads/master/mb_capcha_ocr/model.onnx",
+                {
+                    maxRedirections: 10,
+                    headers: {
+                        "User-Agent":
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                    },
                 }
-            });
+            );
 
             // Create a write stream
             const fileStream = createWriteStream(this.modelPath);
@@ -135,20 +163,20 @@ export default class OCRModel {
             await new Promise<void>((resolve, reject) => {
                 model.body.pipe(fileStream);
 
-                model.body.on('error', (err) => {
+                model.body.on("error", (err) => {
                     reject(err);
                 });
 
-                fileStream.on('finish', () => {
+                fileStream.on("finish", () => {
                     resolve();
                 });
 
-                fileStream.on('error', (err: Error) => {
+                fileStream.on("error", (err: Error) => {
                     reject(err);
                 });
             });
         } catch (error) {
-            console.error('Error downloading model:', error);
+            console.error("Error downloading model:", error);
             throw error;
         }
     }

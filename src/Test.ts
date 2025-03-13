@@ -22,22 +22,53 @@
  * SOFTWARE.
  */
 
-import { MB } from "./index";
+import moment from "moment";
 
-(async () => {
-    const mb = new MB({
-        username: "0123456789",
-        password: "ABCXYZ@@",
+import { BankService } from "./services/bank.service";
+
+/**
+ * Test using the new BankService class
+ */
+const testNewService = async () => {
+    const bankService = new BankService({
+        username: "nguyenkhoa0721",
+        password: "rJzhs%O7jv$87Q1zaV*#",
         preferredOCRMethod: "default",
         saveWasm: true,
     });
 
     try {
-        await mb.login();
+        await bankService.login();
+
+        // Get account balance
+        const balance = await bankService.getBalance();
+        console.log("Balance info:", balance);
+
+        // Get transaction history
+        if (balance && balance.balances && balance.balances.length > 0) {
+            const accountNumber = balance.balances[0].number;
+            const transactions = await bankService.getTransactionsHistory({
+                accountNumber,
+                fromDate: moment().subtract(1, "month"),
+                toDate: moment(),
+            });
+            console.log("Recent transactions:", transactions);
+        }
     } catch (e) {
         const errorMsg = (e as Error).message;
 
-        if (errorMsg.includes("GW18")) return console.log("Test completed. The library is functioning correctly.");
+        if (errorMsg.includes("GW18"))
+            return console.log(
+                "New service test completed. The refactored service is functioning correctly."
+            );
         else throw e;
     }
+};
+
+// Run tests
+(async () => {
+    console.log("\nTesting refactored service implementation:");
+    await testNewService();
+    await testNewService();
+    await testNewService();
 })();
