@@ -1,4 +1,4 @@
-FROM node:20 AS builder
+FROM node:20-slim AS builder
 
 # Install build dependencies
 RUN apk add --no-cache python3 make g++ \
@@ -20,7 +20,7 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
 
 # Install required libraries for ONNX runtime
 RUN apk add --no-cache \
