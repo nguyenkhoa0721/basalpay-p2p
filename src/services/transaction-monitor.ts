@@ -2,30 +2,25 @@ import { Telegraf } from "telegraf";
 import { Scenes } from "telegraf";
 import Redis from "ioredis";
 import moment from "moment";
-
-import { botConfig } from "../config";
 import { BankService } from "./bank.service";
+import { BasalPayService } from "./basal-pay.service";
+import { telegramTemplates, telegramKeyboards } from "../utils/messages/telegram-templates";
+import { Config } from "../config";
 
-/**
- * Sets up the transaction monitoring service
- *
- * @param {Telegraf<Scenes.SceneContext>} bot Telegram bot instance
- * @param {Redis} redis Redis client instance
- * @param {BankService} bankService Initialized bank service instance
- */
+// Initialize the Basal Pay service
+const basalPayService = new BasalPayService();
+
 export function setupTransactionMonitor(
     bot: Telegraf<Scenes.SceneContext>,
     redis: Redis,
     bankService: BankService
 ): void {
-    // Set interval for checking transactions
     setInterval(async () => {
         try {
             await checkTransactions(bot, redis, bankService);
         } catch (error) {
             console.error("Error in transaction check cycle:", error);
 
-            // If login expired, try to re-login
             if (error instanceof Error && error.message.includes("GW200")) {
                 try {
                     await bankService.login();
@@ -35,29 +30,21 @@ export function setupTransactionMonitor(
                 }
             }
         }
-    }, botConfig.transactionCheck.intervalMs);
+    }, Config.transactionCheck.intervalMs);
 
     console.log(
         `Transaction monitoring started (checking every ${
-            botConfig.transactionCheck.intervalMs / 1000
+            Config.transactionCheck.intervalMs / 1000
         } seconds)`
     );
 }
 
-/**
- * Checks for new transactions and matches them to pending payments
- *
- * @param {Telegraf<Scenes.SceneContext>} bot Telegram bot instance
- * @param {Redis} redis Redis client instance
- * @param {BankService} bankService Bank service instance
- */
 async function checkTransactions(
     bot: Telegraf<Scenes.SceneContext>,
     redis: Redis,
     bankService: BankService
 ): Promise<void> {
     console.log(`[${new Date().toISOString()}] Running transaction check...`);
-    // Get bank account info
     const balance = await bankService.getBalance();
 
     if (!balance || !balance.balances || balance.balances.length === 0) {
@@ -65,15 +52,13 @@ async function checkTransactions(
         return;
     }
 
-    // Find the main account
-    const account = balance.balances.find((acc) => acc.number === botConfig.bank.accountNumber);
+    const account = balance.balances.find((acc) => acc.number === Config.bank.accountNumber);
 
     if (!account) {
-        console.error(`Account ${botConfig.bank.accountNumber} not found in balance list`);
+        console.error(`Account ${Config.bank.accountNumber} not found in balance list`);
         return;
     }
 
-    // Get transaction history for the past hour
     const fromDate = moment().subtract(1, "hour");
     const toDate = moment();
 
@@ -89,15 +74,12 @@ async function checkTransactions(
 
     console.log(`Found ${transactions.length} recent transactions`);
 
-    // Process only credit transactions (using integer amounts)
     const creditTransactions = transactions.filter(
         (tx) => tx.creditAmount && parseInt(tx.creditAmount) > 0
     );
 
-    // Get all pending payments
     const pendingPaymentIds = await redis.smembers("payments:pending");
 
-    // For each pending payment, check for matching transactions
     for (const paymentId of pendingPaymentIds) {
         try {
             const paymentData = await redis.hgetall(`payment:${paymentId}`);
@@ -109,83 +91,184 @@ async function checkTransactions(
             const amountVND = parseInt(paymentData.amountVND);
             const memo = paymentData.memo;
 
-            // Look for matching transactions (by amount and memo)
             const matchingTransaction = creditTransactions.find((tx) => {
                 const txAmount = parseInt(tx.creditAmount);
-                // Check if transaction has the memo in the description (memo is now numeric)
                 const hasMemo = tx.transactionDesc && tx.transactionDesc.includes(memo);
 
-                // Check if amount matches (must be exact since we're using integers)
                 const amountMatches = txAmount === amountVND;
 
                 return hasMemo && amountMatches;
             });
 
             if (matchingTransaction) {
-                // Update payment status to completed
                 await redis.hset(`payment:${paymentId}`, {
-                    status: "completed",
-                    completedAt: Date.now().toString(),
+                    status: "processing",
+                    vndReceivedAt: Date.now().toString(),
                     transactionRef: matchingTransaction.refNo,
                 });
 
-                // Remove from pending payments set
-                await redis.srem("payments:pending", paymentId);
+                // Send USDT to the user via Basal Pay
+                try {
+                    // Only send USDT if we haven't already done so
+                    if (!paymentData.usdtTransactionId) {
+                        const amountUSDT = parseFloat(paymentData.amountUSDT);
 
-                // Add to completed payments set
-                await redis.sadd("payments:completed", paymentId);
+                        // Process the USDT transfer via Basal Pay
+                        await processUsdtTransfer(bot, redis, paymentId, paymentData);
+                    } else {
+                        // USDT was already sent, just update status
+                        await redis.hset(`payment:${paymentId}`, {
+                            status: "completed",
+                            completedAt: Date.now().toString(),
+                        });
 
-                // Notify the user
-                if (paymentData.userId) {
-                    try {
-                        await bot.telegram.sendMessage(
-                            paymentData.userId,
-                            `✅ *Payment Confirmed*\n\n` +
-                            `Your payment of *${paymentData.amountUSDT} USDT* has been received and confirmed!\n\n` +
-                            `*Transaction Details:*\n` +
-                            `• Reference: ${matchingTransaction.refNo}\n` +
-                            `• Amount: ${parseInt(paymentData.amountVND).toLocaleString("vi-VN")} VND\n` +
-                            `• Status: Completed\n\n` +
-                            `Thank you for using our service.`,
-                            {
-                                parse_mode: "Markdown",
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: "💰 New Payment", callback_data: "p2p_payment" }],
-                                        [{ text: "📞 Support", callback_data: "support" }]
-                                    ]
+                        await redis.srem("payments:pending", paymentId);
+                        await redis.sadd("payments:completed", paymentId);
+                    }
+
+                    // Notify the user about the completed payment
+                    if (paymentData.userId) {
+                        try {
+                            await bot.telegram.sendMessage(
+                                paymentData.userId,
+                                telegramTemplates.paymentConfirmed({
+                                    amountUSDT: paymentData.amountUSDT,
+                                    amountVND: paymentData.amountVND,
+                                    transactionRef: matchingTransaction.refNo,
+                                    usdtTransactionId: paymentData.usdtTransactionId,
+                                }),
+                                {
+                                    parse_mode: "Markdown",
+                                    reply_markup: telegramKeyboards.paymentConfirmation(),
                                 }
-                            }
-                        );
+                            );
 
-                        console.log(
-                            `Payment ${paymentId} confirmed and user ${paymentData.userId} notified`
-                        );
-                    } catch (notifyError) {
-                        console.error(
-                            `Failed to notify user about completed payment: ${paymentId}`,
-                            notifyError
-                        );
+                            console.log(
+                                `Payment ${paymentId} confirmed and user ${paymentData.userId} notified`
+                            );
+                        } catch (notifyError) {
+                            console.error(
+                                `Failed to notify user about completed payment: ${paymentId}`,
+                                notifyError
+                            );
+                        }
                     }
-                }
 
-                // Also notify admin if configured
-                if (botConfig.adminChatId) {
-                    try {
-                        await bot.telegram.sendMessage(
-                            botConfig.adminChatId,
-                            `💰 Payment confirmed!\n\nID: ${paymentId}\nAmount: ${paymentData.amountUSDT} USDT (${paymentData.amountVND} VND)\nUser: ${paymentData.userId}\nEmail: ${paymentData.email}\nTransaction: ${matchingTransaction.refNo}`
-                        );
-                    } catch (adminNotifyError) {
-                        console.error(
-                            "Failed to notify admin about completed payment",
-                            adminNotifyError
-                        );
+                    // Notify admin about the completed payment
+                    if (Config.adminChatId) {
+                        try {
+                            await bot.telegram.sendMessage(
+                                Config.adminChatId,
+                                telegramTemplates.adminPaymentNotification({
+                                    paymentId,
+                                    amountUSDT: paymentData.amountUSDT,
+                                    amountVND: paymentData.amountVND,
+                                    userId: paymentData.userId,
+                                    email: paymentData.email,
+                                    transactionRef: matchingTransaction.refNo,
+                                })
+                            );
+                        } catch (adminNotifyError) {
+                            console.error(
+                                "Failed to notify admin about completed payment",
+                                adminNotifyError
+                            );
+                        }
                     }
+                } catch (usdtError: any) {
+                    console.error(
+                        `Error processing USDT transfer for payment ${paymentId}:`,
+                        usdtError
+                    );
+
+                    // Notify admin about the failed USDT transfer
+                    if (Config.adminChatId) {
+                        try {
+                            await bot.telegram.sendMessage(
+                                Config.adminChatId,
+                                `❌ Error: Failed to process USDT transfer for payment ${paymentId}.\nVND payment received, but USDT transfer failed.\nAmount: ${paymentData.amountUSDT} USDT\nUser: ${paymentData.userId}\nError: ${usdtError.message}`
+                            );
+                        } catch (notifyError) {
+                            console.error(
+                                "Failed to notify admin about USDT transfer error",
+                                notifyError
+                            );
+                        }
+                    }
+
+                    // Mark payment as requiring manual attention
+                    await redis.hset(`payment:${paymentId}`, {
+                        status: "manual_review",
+                        error: usdtError.message,
+                    });
                 }
             }
         } catch (paymentError) {
             console.error(`Error processing payment ${paymentId}:`, paymentError);
         }
+    }
+}
+
+/**
+ * Process USDT transfer using Basal Pay API
+ */
+async function processUsdtTransfer(
+    bot: Telegraf<Scenes.SceneContext>,
+    redis: Redis,
+    paymentId: string,
+    paymentData: Record<string, string>
+): Promise<void> {
+    try {
+        // Check if we have a recipient userId, if not try to get it from the email
+        let recipientUserId = "";
+
+        if (paymentData.email) {
+            // Try to find the user by email
+            const userId = await basalPayService.getUserByEmail(paymentData.email);
+            if (userId) {
+                recipientUserId = userId;
+                // Save the userId for future reference
+                await redis.hset(`payment:${paymentId}`, {
+                    recipientUserId: userId,
+                });
+            }
+        }
+
+        if (!recipientUserId) {
+            throw new Error("No recipient user ID specified for USDT transfer");
+        }
+
+        // Transfer USDT to the recipient
+        const transferRequest = {
+            toUserId: recipientUserId,
+            amount: paymentData.amountUSDT,
+            currencyId: "usdt",
+            memo: `P2P Payment ID: ${paymentId.substring(0, 8)}`,
+            fundPassword: Config.basalPay.fundPassword,
+        };
+
+        // Execute the transfer
+        const transferResult = await basalPayService.transferUsdt(transferRequest);
+
+        // Update payment record with USDT transaction details
+        await redis.hset(`payment:${paymentId}`, {
+            status: "completed",
+            completedAt: Date.now().toString(),
+            usdtTransactionId: transferResult.data.id,
+            usdtTransactionStatus: transferResult.data.status,
+        });
+
+        // Update payment sets
+        await redis.srem("payments:pending", paymentId);
+        await redis.sadd("payments:completed", paymentId);
+
+        console.log(
+            `USDT transfer completed for payment ${paymentId}: ${paymentData.amountUSDT} USDT to ${recipientUserId}`
+        );
+
+        return;
+    } catch (error) {
+        console.error("Error transferring USDT:", error);
+        throw error;
     }
 }

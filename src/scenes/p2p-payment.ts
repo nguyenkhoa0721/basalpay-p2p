@@ -3,11 +3,12 @@ import { Scenes } from "telegraf";
 import { callbackQuery, message } from "telegraf/filters";
 import { v4 as uuidv4 } from "uuid";
 
-import { botConfig } from "../config";
+import { Config } from "../config";
 import { getBinanceP2PRate } from "../services/binance-service";
+import { telegramKeyboards, telegramTemplates } from "../utils/messages/telegram-templates";
 
 // Initialize Redis
-const redis = new Redis(botConfig.redis.url);
+const redis = new Redis(Config.redis.url);
 
 /**
  * Format a number as VND currency
@@ -22,19 +23,17 @@ export const p2pPaymentScene = new Scenes.BaseScene<Scenes.SceneContext>("p2p-pa
 // Entry point
 p2pPaymentScene.enter(async (ctx) => {
     try {
-        await ctx.reply("Select an amount or enter your own amount:", {
-            reply_markup: {
-                inline_keyboard: [
-                    [
-                        { text: "10 USDT", callback_data: "amount_10" },
-                        { text: "50 USDT", callback_data: "amount_50" },
-                        { text: "100 USDT", callback_data: "amount_100" },
-                    ],
-                    [{ text: "Custom Amount", callback_data: "custom_amount" }],
-                    [{ text: "🔙 Back", callback_data: "back" }],
-                ],
-            },
-        });
+        // Edit the current message if possible (after clicking P2P payment button)
+        if (ctx.callbackQuery) {
+            await ctx.editMessageText("Select an amount or enter your own amount:", {
+                reply_markup: telegramKeyboards.amountSelection(),
+            });
+        } else {
+            // Otherwise send a new message
+            await ctx.reply("Select an amount or enter your own amount:", {
+                reply_markup: telegramKeyboards.amountSelection(),
+            });
+        }
 
         // Reset any previously stored data for the flow
         const userId = ctx.from?.id.toString();
@@ -89,7 +88,7 @@ p2pPaymentScene.action("custom_amount", async (ctx) => {
         });
 
         await ctx.answerCbQuery();
-        await ctx.reply("Please enter the amount in USDT (minimum 5 USDT):");
+        await ctx.reply("Please enter the amount in USDT (minimum 1 USDT):");
     } catch (error) {
         console.error("Error processing custom amount request:", error);
         await ctx.reply("Sorry, there was an error. Please try again.");
@@ -136,7 +135,9 @@ p2pPaymentScene.action(/^copy_amount_(.+)$/, async (ctx) => {
         const match = ctx.callbackQuery.data.match(/^copy_amount_(.+)$/);
         if (match) {
             const amount = match[1];
-            await ctx.answerCbQuery(`Amount ${formatVND(parseInt(amount))} VND copied to clipboard`);
+            await ctx.answerCbQuery(
+                `Amount ${formatVND(parseInt(amount))} VND copied to clipboard`
+            );
         }
     }
 });
@@ -170,7 +171,12 @@ ${
                     inline_keyboard: [
                         [{ text: "💰 P2P Payment", callback_data: "p2p_payment" }],
                         [{ text: "📞 Support", callback_data: "support" }],
-                        [{ text: "↩️ Back to Payment", callback_data: `show_payment_${paymentId}` }],
+                        [
+                            {
+                                text: "↩️ Back to Payment",
+                                callback_data: `show_payment_${paymentId}`,
+                            },
+                        ],
                     ],
                 },
             });
@@ -196,45 +202,28 @@ p2pPaymentScene.action(/^show_payment_(.+)$/, async (ctx) => {
             const amountVND = parseInt(paymentData.amountVND);
             const rate = parseFloat(paymentData.rate);
             const memo = paymentData.memo;
-            const expiryMinutes = botConfig.payment.expiryMinutes;
+            const expiryMinutes = Config.payment.expiryMinutes;
 
             // Create payment instructions message with clickable copy buttons
-            const instructionMessage = `💳 *Payment Details*\n\n` +
-                `📊 *Transaction Information:*\n` +
-                `• Amount: ${amountUSDT} USDT\n` +
-                `• VND Amount: ${formatVND(amountVND)} VND\n` +
-                `• Rate: ${formatVND(rate)} VND/USDT (Binance P2P + 2%)\n\n` +
-                `🏦 *Transfer Details:*\n` +
-                `\`\`\`\n` +
-                `BANK:   ${botConfig.bank.name}\n` +
-                `ACCOUNT: ${botConfig.bank.accountNumber}\n` +
-                `NAME:   ${botConfig.bank.accountName}\n` +
-                `MEMO:   ${memo}\n` +
-                `\`\`\`\n\n` +
-                `⚠️ IMPORTANT: You MUST include the memo code in your transfer description!\n\n` +
-                `⏱ This payment request will expire in ${expiryMinutes} minutes.\n` +
-                `Payment ID: ${paymentId.substring(0, 8)}\n\n` +
-                `We'll automatically notify you once the payment is confirmed.`;
+            const instructionMessage = telegramTemplates.paymentDetails({
+                amountUSDT,
+                amountVND,
+                rate,
+                memo,
+                paymentId,
+                expiryMinutes,
+                status: "pending",
+            });
 
             // Edit the original message to show payment details again
             await ctx.editMessageText(instructionMessage, {
                 parse_mode: "Markdown",
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            { text: "📋 Copy Account Number", callback_data: `copy_account_${botConfig.bank.accountNumber}` },
-                            { text: "📋 Copy Memo", callback_data: `copy_memo_${memo}` }
-                        ],
-                        [
-                            { text: "📋 Copy Amount", callback_data: `copy_amount_${amountVND}` },
-                            { text: "📊 Check Status", callback_data: `check_status_${paymentId}` }
-                        ],
-                        [
-                            { text: "💰 New Payment", callback_data: "p2p_payment" },
-                            { text: "📞 Support", callback_data: "support" }
-                        ],
-                    ],
-                },
+                reply_markup: telegramKeyboards.paymentDetails({
+                    accountNumber: Config.bank.accountNumber,
+                    memo,
+                    amountVND,
+                    paymentId,
+                }),
             });
             await ctx.answerCbQuery("Payment details shown");
         }
@@ -250,17 +239,7 @@ p2pPaymentScene.on(message("text"), async (ctx) => {
         // If no flow data, start over
         if (!flowData || Object.keys(flowData).length === 0) {
             await ctx.reply("Let's start again. Select an amount or enter your own amount:", {
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            { text: "10 USDT", callback_data: "amount_10" },
-                            { text: "50 USDT", callback_data: "amount_50" },
-                            { text: "100 USDT", callback_data: "amount_100" },
-                        ],
-                        [{ text: "Custom Amount", callback_data: "custom_amount" }],
-                        [{ text: "🔙 Back", callback_data: "back" }],
-                    ],
-                },
+                reply_markup: telegramKeyboards.amountSelection(),
             });
             return;
         }
@@ -304,17 +283,7 @@ p2pPaymentScene.on(message("text"), async (ctx) => {
 
             default:
                 await ctx.reply("Something went wrong. Let's start again.", {
-                    reply_markup: {
-                        inline_keyboard: [
-                            [
-                                { text: "10 USDT", callback_data: "amount_10" },
-                                { text: "50 USDT", callback_data: "amount_50" },
-                                { text: "100 USDT", callback_data: "amount_100" },
-                            ],
-                            [{ text: "Custom Amount", callback_data: "custom_amount" }],
-                            [{ text: "🔙 Back", callback_data: "back" }],
-                        ],
-                    },
+                    reply_markup: telegramKeyboards.amountSelection(),
                 });
         }
     } catch (error) {
@@ -337,8 +306,8 @@ async function generatePaymentInfo(ctx: any, userId: string) {
             throw new Error("Could not fetch exchange rate");
         }
 
-        // Apply markup (rate + 2%)
-        const rate = binanceRate * 1.02;
+        // Apply markup (rate + configured markup percentage)
+        const rate = binanceRate * (1 + Config.payment.markup / 100);
 
         // Calculate VND amount - always as integer
         const amountUSDT = parseFloat(flowData.amountUSDT);
@@ -352,12 +321,13 @@ async function generatePaymentInfo(ctx: any, userId: string) {
         const memo = (numericPart % 100000000).toString().padStart(8, "0");
 
         const now = Date.now();
-        const expiryMinutes = botConfig.payment.expiryMinutes;
+        const expiryMinutes = Config.payment.expiryMinutes;
         const expiresAt = now + expiryMinutes * 60 * 1000;
 
         await redis.hset(`payment:${paymentId}`, {
             userId,
             email: flowData.email,
+            recipientUserId: flowData.recipientUserId || "", // Store Basal Pay User ID
             amountUSDT: amountUSDT.toString(),
             amountVND: amountVND.toString(),
             rate: rate.toString(),
@@ -376,41 +346,28 @@ async function generatePaymentInfo(ctx: any, userId: string) {
         // Set as user's active payment
         await redis.set(`user:${userId}:activePayment`, paymentId);
 
-        // Create payment instructions message with clickable copy buttons
-        const instructionMessage = `💳 *Payment Details*\n\n` +
-            `📊 *Transaction Information:*\n` +
-            `• Amount: ${amountUSDT} USDT\n` +
-            `• VND Amount: ${formatVND(amountVND)} VND\n` +
-            `• Rate: ${formatVND(rate)} VND/USDT (Binance P2P + 2%)\n\n` +
-            `🏦 *Transfer Details:*\n` +
-            `\`\`\`\n` +
-            `BANK:   ${botConfig.bank.name}\n` +
-            `ACCOUNT: ${botConfig.bank.accountNumber}\n` +
-            `NAME:   ${botConfig.bank.accountName}\n` +
-            `MEMO:   ${memo}\n` +
-            `\`\`\`\n\n` +
-            `⚠️ IMPORTANT: You MUST include the memo code in your transfer description!\n\n` +
-            `⏱ This payment request will expire in ${expiryMinutes} minutes.\n` +
-            `Payment ID: ${paymentId.substring(0, 8)}\n\n` +
-            `We'll automatically notify you once the payment is confirmed.`;
+        // Generate VietQR URL
+        const qrUrl = `https://qr.sepay.vn/img?acc=${Config.bank.accountNumber}&bank=MB&amount=${amountVND}&des=${memo}`;
 
-        // Send the payment details message with copy buttons
-        await ctx.replyWithMarkdown(instructionMessage, {
+        // Create a caption for the QR code with formatted text and emoji key-value pairs
+        const caption =
+            `💳 *Payment Details*\n\n` +
+            `💰 Amount: *${amountUSDT} USDT* (${formatVND(amountVND)} VND)\n` +
+            `💹 Rate: ${formatVND(Math.round(rate))} VND/USDT\n\n` +
+            `🏦 Bank: \`${Config.bank.name}\`\n` +
+            `👤 Name: \`${Config.bank.accountName}\`\n` +
+            `🔢 Account: \`${Config.bank.accountNumber}\`\n` +
+            `📝 Memo: \`${memo}\`\n\n` +
+            `⚠️ *IMPORTANT:* Transfer with the exact memo code\n\n` +
+            `🆔 Payment ID: ${paymentId.substring(0, 8)}\n` +
+            `⏱ Expires in ${expiryMinutes} minutes`;
+
+        // Send QR code as photo with caption
+        await ctx.replyWithPhoto(qrUrl, {
+            caption: caption,
+            parse_mode: "Markdown",
             reply_markup: {
-                inline_keyboard: [
-                    [
-                        { text: "📋 Copy Account Number", callback_data: `copy_account_${botConfig.bank.accountNumber}` },
-                        { text: "📋 Copy Memo", callback_data: `copy_memo_${memo}` }
-                    ],
-                    [
-                        { text: "📋 Copy Amount", callback_data: `copy_amount_${amountVND}` },
-                        { text: "📊 Check Status", callback_data: `check_status_${paymentId}` }
-                    ],
-                    [
-                        { text: "💰 New Payment", callback_data: "p2p_payment" },
-                        { text: "📞 Support", callback_data: "support" }
-                    ],
-                ],
+                inline_keyboard: [[{ text: "📞 Support", callback_data: "support" }]],
             },
         });
 
