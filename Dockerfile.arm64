@@ -1,62 +1,44 @@
-FROM node:20-bullseye-slim AS builder
-
-# Install dependencies for building native modules
-RUN apt-get update && apt-get install -y \
-    python3 \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Use Node.js 20 on Debian Bullseye for ARM64 architecture (Apple M1/M2)
+FROM node:20-bullseye-slim
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Install system dependencies required for Sharp, onnxruntime-node, and Redis
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    build-essential \
+    ca-certificates \
+    curl \
+    wget \
+    redis-server \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files first for better caching
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm ci --only=production
 
-# Copy source code
+# Copy the rest of the application code
 COPY . .
+
+# Pre-download the ONNX model to avoid downloading during runtime
+RUN mkdir -p /app/model && \
+    wget -O /app/model.onnx https://github.com/thedtvn/mbbank-capcha-ocr/raw/refs/heads/master/mb_capcha_ocr/model.onnx
 
 # Build the application
 RUN npm run build
 
-# Production stage
-FROM node:20-bullseye-slim AS production
-
-# Install required libraries for ARM64 and ONNX runtime
-RUN apt-get update && apt-get install -y \
-    libc6 \
-    libstdc++6 \
-    redis-server \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
-WORKDIR /app
-
-# Set environment variables
-ENV NODE_ENV=production
-
-# Copy package files
-COPY package*.json ./
-
-# Install production dependencies only
-RUN npm ci --omit=dev
-
-# Copy build artifacts from builder stage
-COPY --from=builder /app/dist ./dist
-COPY .env* ./
-
-# Create volume for Redis data
-VOLUME /data
-
-# Copy startup script 
-COPY docker-startup-arm64.sh ./docker-startup.sh
-RUN chmod +x docker-startup.sh
-
-# Expose Redis and app ports
+# Expose Redis port if needed
 EXPOSE 6379
-EXPOSE 3000
 
-# Use the startup script as entrypoint
-ENTRYPOINT ["./docker-startup.sh"]
+# Create a startup script
+RUN echo '#!/bin/bash\nservice redis-server start\nexec "$@"' > /app/docker-entrypoint.sh && \
+    chmod +x /app/docker-entrypoint.sh
+
+# Set the entrypoint
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+
+# Default command
+CMD ["npm", "start"]
