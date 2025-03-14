@@ -2,6 +2,8 @@ import { Config } from "../../config";
 
 /**
  * Format a number as VND currency
+ * @param amount The amount to format
+ * @returns Formatted amount with Vietnamese locale
  */
 export function formatVND(amount: number): string {
     return amount.toLocaleString("vi-VN");
@@ -63,6 +65,34 @@ export const telegramTemplates = {
     }) => {
         const { paymentId, amountUSDT, amountVND, status, createdAt, expiresAt } = params;
 
+        // Format status with emoji
+        let statusDisplay = "";
+        switch (status) {
+            case "pending":
+                statusDisplay = "⏳ Pending";
+                break;
+            case "processing":
+                statusDisplay = "⚙️ Processing";
+                break;
+            case "completed":
+                statusDisplay = "✅ Completed";
+                break;
+            case "expired":
+                statusDisplay = "⏰ Expired";
+                break;
+            case "canceled":
+                statusDisplay = "❌ Canceled";
+                break;
+            case "manual_review":
+                statusDisplay = "⚠️ Under Review";
+                break;
+            case "error":
+                statusDisplay = "⚠️ Error (Contact Support)";
+                break;
+            default:
+                statusDisplay = status;
+        }
+
         return (
             `📝 *Payment Status*\n\n` +
             `Payment ID: ${paymentId.substring(0, 8)}\n` +
@@ -71,7 +101,7 @@ export const telegramTemplates = {
                     ? formatVND(amountVND)
                     : formatVND(parseInt(amountVND as string))
             } VND)\n` +
-            `Status: ${status}\n` +
+            `Status: ${statusDisplay}\n` +
             `Created: ${new Date(
                 typeof createdAt === "number" ? createdAt : parseInt(createdAt as string)
             ).toLocaleString()}\n` +
@@ -151,12 +181,18 @@ export const telegramTemplates = {
     },
 
     /**
-     * Generate welcome message
+     * Generate welcome message with operating hours and USDT balance
      */
-    welcome: () => {
+    welcome: (usdtBalance?: string) => {
+        const balanceInfo = usdtBalance 
+            ? `\n\n💰 Available USDT balance: *${usdtBalance}*` 
+            : '';
+            
         return (
             `👋 Welcome to ${Config.botName}!\n\n` +
-            `I can help you make P2P payments quickly and securely.`
+            `I can help you make P2P payments quickly and securely.\n\n` +
+            `⏰ *Operating Hours:* 9:00 AM - 12:00 AM (midnight) Vietnam time` +
+            balanceInfo
         );
     },
 
@@ -168,10 +204,10 @@ export const telegramTemplates = {
             `${Config.botName} Help:\n\n` +
             `/start - Start the bot\n` +
             `/p2p - Start a P2P payment\n` +
-            `/usdt - Buy USDT with VND\n` +
             `/status - Check your payment status\n` +
             `/support - Contact support\n` +
-            `/help - Show this help message`
+            `/help - Show this help message\n\n` +
+            `⏰ *Operating Hours:* 9:00 AM - 12:00 AM (midnight) Vietnam time`
         );
     },
 
@@ -195,7 +231,7 @@ export const telegramKeyboards = {
         const quarter = Math.floor(balance * 0.25 * 100) / 100;
         const half = Math.floor(balance * 0.5 * 100) / 100;
         const threeQuarters = Math.floor(balance * 0.75 * 100) / 100;
-        
+
         return {
             inline_keyboard: [
                 [
@@ -203,7 +239,10 @@ export const telegramKeyboards = {
                     { text: `${half} USDT`, callback_data: `usdt_amount_${half}` },
                 ],
                 [
-                    { text: `${threeQuarters} USDT`, callback_data: `usdt_amount_${threeQuarters}` },
+                    {
+                        text: `${threeQuarters} USDT`,
+                        callback_data: `usdt_amount_${threeQuarters}`,
+                    },
                     { text: `MAX (${balance} USDT)`, callback_data: `usdt_amount_${balance}` },
                 ],
                 [{ text: "Custom Amount", callback_data: "custom_usdt_amount" }],
@@ -244,7 +283,6 @@ export const telegramKeyboards = {
         return {
             inline_keyboard: [
                 [{ text: "💰 P2P Payment", callback_data: "p2p_payment" }],
-                [{ text: "💸 Buy USDT", callback_data: "usdt_transfer" }],
                 [{ text: "📞 Support", callback_data: "support" }],
             ],
         };
@@ -272,17 +310,7 @@ export const telegramKeyboards = {
 
         return {
             inline_keyboard: [
-                [
-                    {
-                        text: "📋 Copy Account Number",
-                        callback_data: `copy_account_${accountNumber}`,
-                    },
-                    { text: "📋 Copy Memo", callback_data: `copy_memo_${memo}` },
-                ],
-                [
-                    { text: "📋 Copy Amount", callback_data: `copy_amount_${amountVND}` },
-                    { text: "📊 Check Status", callback_data: `check_status_${paymentId}` },
-                ],
+                [{ text: "❌ Cancel Payment", callback_data: `cancel_payment_${paymentId}` }],
                 [
                     { text: "💰 New Payment", callback_data: "p2p_payment" },
                     { text: "📞 Support", callback_data: "support" },

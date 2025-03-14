@@ -5,7 +5,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsup src/index.ts",
+    "build": "tsup src/index.ts --dts --format esm,cjs",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
     "test-github": "ts-node src/Test.ts",
     "test": "nodemon src/Test.ts -w src",
     "doc": "typedoc",

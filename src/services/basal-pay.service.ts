@@ -1,20 +1,13 @@
 import axios from "axios";
 import { Config } from "../config";
 
+// Response interfaces
 interface BalanceResponse {
     success: boolean;
     data: {
         balance: string;
         currencyId: string;
     };
-}
-
-interface WalletTransferRequest {
-    toUserId: string;
-    amount: string;
-    currencyId: string;
-    memo: string;
-    fundPassword: string;
 }
 
 interface TransferResponse {
@@ -33,11 +26,6 @@ interface TransferResponse {
     };
 }
 
-interface FeeRequest {
-    amount: string;
-    transactionType: string;
-}
-
 interface FeeResponse {
     success: boolean;
     data: {
@@ -52,13 +40,27 @@ interface FeeResponse {
     };
 }
 
+// Request interfaces
+interface WalletTransferRequest {
+    toUserId: string;
+    amount: string;
+    currencyId: string;
+    memo: string;
+    fundPassword: string;
+}
+
+interface FeeRequest {
+    amount: string;
+    transactionType: string;
+}
+
 export class BasalPayService {
     private baseUrl: string;
     private accessToken: string;
 
     constructor() {
-        this.baseUrl = Config.basalPay.apiUrl || "https://sandbox-api.basalpay.com/api/v1";
-        this.accessToken = Config.basalPay.accessToken || "";
+        this.baseUrl = Config.basalPay.apiUrl;
+        this.accessToken = Config.basalPay.accessToken;
     }
 
     private getHeaders() {
@@ -106,6 +108,22 @@ export class BasalPayService {
         } catch (error) {
             console.error("Error getting USDT balance:", error);
             throw error;
+        }
+    }
+
+    /**
+     * Check if there's sufficient USDT balance for a transaction
+     */
+    async hasSufficientBalance(amount: string): Promise<boolean> {
+        try {
+            const balance = await this.getUsdtBalance();
+            const numBalance = parseFloat(balance);
+            const numAmount = parseFloat(amount);
+
+            return !isNaN(numBalance) && !isNaN(numAmount) && numBalance >= numAmount;
+        } catch (error) {
+            console.error("Error checking USDT balance:", error);
+            return false;
         }
     }
 

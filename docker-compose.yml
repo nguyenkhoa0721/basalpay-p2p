@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  mb-p2p-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mb-p2p-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379" # Redis (if you need to access Redis externally)
+    networks:
+      - mbbank-network
+
+networks:
+  mbbank-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local
