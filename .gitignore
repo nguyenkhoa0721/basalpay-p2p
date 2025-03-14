@@ -133,3 +133,5 @@ Test.local.js
 
 model.onnx
 main.wasm
+
+dist
